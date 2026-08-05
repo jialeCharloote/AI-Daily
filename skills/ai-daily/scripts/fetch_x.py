@@ -77,6 +77,9 @@ X_ACCOUNTS = [
 # pass on the keyword filter: an announcement like "DeepSeek-V4 is live" contains
 # none of the keywords below and would otherwise be dropped, and these labs post in
 # Chinese as often as English.
+# Most posts kept from any one account, applied after the engagement sort.
+MAX_POSTS_PER_ACCOUNT = 3
+
 ALWAYS_RELEVANT = {
     "deepseek_ai", "Alibaba_Qwen", "Kimi_Moonshot", "Zai_org", "MiniMax_AI",
     "GoogleLabs",
@@ -176,8 +179,25 @@ async def main():
             print(f'[FAIL] {username}: {type(e).__name__}: {e}', file=sys.stderr)
             continue
 
-    print(f'[OK] {len(results)} posts from {len(X_ACCOUNTS)} accounts', file=sys.stderr)
+    fetched = len(results)
     results.sort(key=lambda x: x.get('likes', 0) + x.get('retweets', 0) * 3, reverse=True)
+
+    # Cap per account so no single one dominates the digest. Lab accounts in
+    # particular amplify one launch across many posts — a single Qwen release
+    # filled 11 of 15 slots in one window, five of them about the same model.
+    # Sorted by engagement first, so each account keeps its strongest posts.
+    kept, per_account = [], {}
+    for post in results:
+        user = post['username']
+        per_account[user] = per_account.get(user, 0) + 1
+        if per_account[user] <= MAX_POSTS_PER_ACCOUNT:
+            kept.append(post)
+    results = kept
+
+    print(f'[OK] {len(results)} posts from {len(X_ACCOUNTS)} accounts'
+          + (f' ({fetched - len(results)} dropped by the per-account cap of '
+             f'{MAX_POSTS_PER_ACCOUNT})' if fetched != len(results) else ''),
+          file=sys.stderr)
     sys.stdout.buffer.write(json.dumps(results, ensure_ascii=False).encode('utf-8'))
     sys.stdout.buffer.write(b'\n')
 
