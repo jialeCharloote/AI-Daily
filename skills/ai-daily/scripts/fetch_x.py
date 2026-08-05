@@ -61,8 +61,26 @@ X_ACCOUNTS = [
     "garrytan", "levie", "HamelHusain", "alexalbert__",
     "rauchg", "amasad", "george__mack", "mckaywrigley",
     "lennysan", "gregisenberg", "swyx", "kevinweil",
-    "joshwoodward", "peteryang"
+    "joshwoodward", "peteryang",
+    # Chinese labs. Handles verified against the live API — several plausible
+    # guesses are impostors or unrelated accounts: @ChatGLM (10 followers),
+    # @moonshotai (an unrelated "Chancellor Moonshot"), @deepseek (474), and
+    # @InternLM (a medical account) are NOT these labs. Do not "correct" these.
+    "deepseek_ai",      # DeepSeek
+    "Alibaba_Qwen",     # Qwen
+    "Kimi_Moonshot",    # Moonshot AI
+    "Zai_org",          # Z.ai / 智谱 (formerly ChatGLM)
+    "MiniMax_AI",       # MiniMax
 ]
+
+# Accounts whose every post is on-topic by definition. Official lab accounts get a
+# pass on the keyword filter: an announcement like "DeepSeek-V4 is live" contains
+# none of the keywords below and would otherwise be dropped, and these labs post in
+# Chinese as often as English.
+ALWAYS_RELEVANT = {
+    "deepseek_ai", "Alibaba_Qwen", "Kimi_Moonshot", "Zai_org", "MiniMax_AI",
+    "GoogleLabs",
+}
 
 # Post must contain at least one of these keywords (case-insensitive) to be included.
 #
@@ -85,12 +103,25 @@ AI_STEMS = [
     'open source', 'dataset', 'research', 'paper', 'deploy',
 ]
 
+# Chinese terms are matched as plain substrings. CJK has no word boundaries for \b
+# to find, and these are multi-character terms, so the 'ai'-inside-'air' class of
+# false positive does not arise here.
+AI_TERMS_CN = [
+    '模型', '大模型', '智能体', '推理', '训练', '微调', '开源', '多模态',
+    '参数', '算力', '提示词', '语料', '对齐', '基准测试', '生成式',
+    '人工智能', '深度学习', '机器学习', '发布', '上线', '权重',
+]
+
 _ACRONYM_RE = re.compile(
     r'\b(?:' + '|'.join(re.escape(k) for k in AI_ACRONYMS) + r')s?\b', re.IGNORECASE)
 _STEM_RE = re.compile(
     r'\b(?:' + '|'.join(re.escape(k) for k in AI_STEMS) + r')', re.IGNORECASE)
 
-def is_ai_relevant(text: str) -> bool:
+def is_ai_relevant(text: str, username: str = '') -> bool:
+    if username in ALWAYS_RELEVANT:
+        return True
+    if any(term in text for term in AI_TERMS_CN):
+        return True
     return bool(_ACRONYM_RE.search(text) or _STEM_RE.search(text))
 
 def load_creds():
@@ -128,7 +159,7 @@ async def main():
                 if tweet_date in [today, yesterday]:
                     if tweet.rawContent.startswith('RT @'):
                         continue
-                    if not is_ai_relevant(tweet.rawContent):
+                    if not is_ai_relevant(tweet.rawContent, username):
                         continue
                     results.append({
                         "username": username,

@@ -347,6 +347,14 @@ RSS_SOURCES = [
             "https://news.smol.ai/feed",
         ],
     },
+    # Chinese labs. Qwen is the only one of the majors publishing a working feed —
+    # DeepSeek's api-docs and jiqizhixin both soft-404 into HTML, and z.ai/blog has
+    # no feed at all, so those labs are covered through their X accounts instead.
+    {
+        "name": "Qwen",
+        "category": "Official Update",
+        "rss_urls": ["https://qwenlm.github.io/blog/index.xml"],
+    },
     # Every.to — newsletter-specific feeds
     {
         "name": "Every.to",
