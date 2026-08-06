@@ -95,7 +95,7 @@ AI_ACRONYMS = ['ai', 'ml', 'llm', 'gpt', 'rag', 'api', 'saas']
 # Matched from a word boundary but allowed to run on, so 'model' catches 'models',
 # 'deploy' catches 'deployment', and 'fine-tun' catches 'fine-tuning'.
 AI_STEMS = [
-    'claude', 'gemini', 'openai', 'anthropic',
+    'claude', 'gemini', 'openai', 'anthropic', 'intelligence',
     'model', 'agent', 'prompt', 'token', 'inference', 'training', 'neural',
     'embedding', 'vector', 'fine-tun', 'transformer', 'diffusion',
     'multimodal', 'frontier', 'open weight', 'open-weight',
@@ -160,10 +160,16 @@ async def main():
             for tweet in tweets:
                 tweet_date = tweet.date.astimezone(beijing_tz).date()
                 if tweet_date in [today, yesterday]:
+                    # Emit every in-window post and record why it was dropped,
+                    # rather than dropping it here. Silently discarded posts made
+                    # the keyword filter's false-negative rate unmeasurable: the
+                    # posts you most need to audit were the ones never written.
                     if tweet.rawContent.startswith('RT @'):
-                        continue
-                    if not is_ai_relevant(tweet.rawContent, username):
-                        continue
+                        status = 'dropped_rt'
+                    elif not is_ai_relevant(tweet.rawContent, username):
+                        status = 'dropped_keyword'
+                    else:
+                        status = 'kept'
                     results.append({
                         "username": username,
                         "displayname": user.displayname,
@@ -171,7 +177,8 @@ async def main():
                         "date": tweet.date.astimezone(beijing_tz).strftime('%Y-%m-%d %H:%M'),
                         "url": f"https://x.com/{username}/status/{tweet.id}",
                         "likes": tweet.likeCount,
-                        "retweets": tweet.retweetCount
+                        "retweets": tweet.retweetCount,
+                        "status": status
                     })
         except Exception as e:
             # Report and move on. Swallowing these silently made a missing
@@ -179,24 +186,35 @@ async def main():
             print(f'[FAIL] {username}: {type(e).__name__}: {e}', file=sys.stderr)
             continue
 
-    fetched = len(results)
+    in_window = len(results)
     results.sort(key=lambda x: x.get('likes', 0) + x.get('retweets', 0) * 3, reverse=True)
 
     # Cap per account so no single one dominates the digest. Lab accounts in
     # particular amplify one launch across many posts — a single Qwen release
     # filled 11 of 15 slots in one window, five of them about the same model.
     # Sorted by engagement first, so each account keeps its strongest posts.
-    kept, per_account = [], {}
+    # Over-cap posts are marked rather than removed, same as the filters above.
+    per_account = {}
     for post in results:
+        if post['status'] != 'kept':
+            continue
         user = post['username']
         per_account[user] = per_account.get(user, 0) + 1
-        if per_account[user] <= MAX_POSTS_PER_ACCOUNT:
-            kept.append(post)
-    results = kept
+        if per_account[user] > MAX_POSTS_PER_ACCOUNT:
+            post['status'] = 'dropped_cap'
 
-    print(f'[OK] {len(results)} posts from {len(X_ACCOUNTS)} accounts'
-          + (f' ({fetched - len(results)} dropped by the per-account cap of '
-             f'{MAX_POSTS_PER_ACCOUNT})' if fetched != len(results) else ''),
+    # Consumers take the leading run of kept posts, so order by status first and
+    # engagement second. Everything after the kept block is archive-only.
+    kept = [p for p in results if p['status'] == 'kept']
+    dropped = [p for p in results if p['status'] != 'kept']
+    results = kept + dropped
+
+    tally = {}
+    for post in dropped:
+        tally[post['status']] = tally.get(post['status'], 0) + 1
+    detail = ', '.join(f'{k}={v}' for k, v in sorted(tally.items()))
+    print(f'[OK] {len(kept)} kept of {in_window} in-window posts from '
+          f'{len(X_ACCOUNTS)} accounts' + (f' ({detail})' if detail else ''),
           file=sys.stderr)
     sys.stdout.buffer.write(json.dumps(results, ensure_ascii=False).encode('utf-8'))
     sys.stdout.buffer.write(b'\n')
