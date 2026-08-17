@@ -355,6 +355,12 @@ RSS_SOURCES = [
         "category": "Official Update",
         "rss_urls": ["https://qwenlm.github.io/blog/index.xml"],
     },
+    # SCSP (Special Competitive Studies Project) — policy/strategy analysis.
+    {
+        "name": "SCSP",
+        "category": "Independent News",
+        "rss_urls": ["https://scsp222.substack.com/feed"],
+    },
     # Every.to — newsletter-specific feeds
     {
         "name": "Every.to",

@@ -71,7 +71,27 @@ X_ACCOUNTS = [
     "Kimi_Moonshot",    # Moonshot AI
     "Zai_org",          # Z.ai / 智谱 (formerly ChatGLM)
     "MiniMax_AI",       # MiniMax
+    # Research/papers tier (friend-recommended, verified 2026-08-17):
+    "JeffDean",         # Jeff Dean, Google chief scientist
+    "hardmaru",         # David Ha, Sakana AI
+    "fly51fly",         # AI paper curator
+    "sama",             # Sam Altman
+    "gdb",              # Greg Brockman
+    "emilychangtv",     # Emily Chang, Bloomberg
 ]
+
+# Markets section — kept apart from the AI accounts on purpose: their posts get
+# section="markets", skip the AI keyword filter (finance content would never
+# match it), and render in their own section of the brief. financein90s and
+# kuntupark were also recommended but do not exist on X (TikTok-only).
+MARKET_ACCOUNTS = [
+    "cantonmeow",       # technical analysis
+    "jiahanjimliu",     # Jim Liu, IREN / AI-infra equities
+    "thedealsguy_",     # consumer retail arbitrage
+    "liamdaltonjr",
+]
+
+MAX_POSTS_PER_MARKET_ACCOUNT = 2
 
 # Accounts whose every post is on-topic by definition. Official lab accounts get a
 # pass on the keyword filter: an announcement like "DeepSeek-V4 is live" contains
@@ -151,7 +171,9 @@ async def main():
     await api.pool.add_account_cookies('morning_tea_account', f'auth_token={auth_token}; ct0={ct0}')
 
     results = []
-    for username in X_ACCOUNTS:
+    all_accounts = ([(u, 'ai') for u in X_ACCOUNTS]
+                    + [(u, 'markets') for u in MARKET_ACCOUNTS])
+    for username, section in all_accounts:
         try:
             user = await api.user_by_login(username)
             if not user:
@@ -164,9 +186,11 @@ async def main():
                     # rather than dropping it here. Silently discarded posts made
                     # the keyword filter's false-negative rate unmeasurable: the
                     # posts you most need to audit were the ones never written.
+                    # Market posts skip the AI keyword filter — finance content
+                    # would never match it and lives in its own brief section.
                     if tweet.rawContent.startswith('RT @'):
                         status = 'dropped_rt'
-                    elif not is_ai_relevant(tweet.rawContent, username):
+                    elif section == 'ai' and not is_ai_relevant(tweet.rawContent, username):
                         status = 'dropped_keyword'
                     else:
                         status = 'kept'
@@ -178,7 +202,8 @@ async def main():
                         "url": f"https://x.com/{username}/status/{tweet.id}",
                         "likes": tweet.likeCount,
                         "retweets": tweet.retweetCount,
-                        "status": status
+                        "status": status,
+                        "section": section
                     })
         except Exception as e:
             # Report and move on. Swallowing these silently made a missing
@@ -194,18 +219,24 @@ async def main():
     # filled 11 of 15 slots in one window, five of them about the same model.
     # Sorted by engagement first, so each account keeps its strongest posts.
     # Over-cap posts are marked rather than removed, same as the filters above.
+    # Market accounts get a tighter cap: high-engagement trading posts would
+    # otherwise swamp their small section.
     per_account = {}
     for post in results:
         if post['status'] != 'kept':
             continue
         user = post['username']
+        cap = (MAX_POSTS_PER_MARKET_ACCOUNT if post.get('section') == 'markets'
+               else MAX_POSTS_PER_ACCOUNT)
         per_account[user] = per_account.get(user, 0) + 1
-        if per_account[user] > MAX_POSTS_PER_ACCOUNT:
+        if per_account[user] > cap:
             post['status'] = 'dropped_cap'
 
-    # Consumers take the leading run of kept posts, so order by status first and
-    # engagement second. Everything after the kept block is archive-only.
+    # Consumers take the leading run of kept posts, so order by status first,
+    # section second (ai before markets), engagement third. Everything after
+    # the kept block is archive-only.
     kept = [p for p in results if p['status'] == 'kept']
+    kept.sort(key=lambda p: p.get('section', 'ai') != 'ai')
     dropped = [p for p in results if p['status'] != 'kept']
     results = kept + dropped
 
@@ -213,8 +244,11 @@ async def main():
     for post in dropped:
         tally[post['status']] = tally.get(post['status'], 0) + 1
     detail = ', '.join(f'{k}={v}' for k, v in sorted(tally.items()))
-    print(f'[OK] {len(kept)} kept of {in_window} in-window posts from '
-          f'{len(X_ACCOUNTS)} accounts' + (f' ({detail})' if detail else ''),
+    n_mkt = sum(1 for p in kept if p.get('section') == 'markets')
+    print(f'[OK] {len(kept)} kept ({len(kept) - n_mkt} ai + {n_mkt} markets) of '
+          f'{in_window} in-window posts from '
+          f'{len(X_ACCOUNTS) + len(MARKET_ACCOUNTS)} accounts'
+          + (f' ({detail})' if detail else ''),
           file=sys.stderr)
     sys.stdout.buffer.write(json.dumps(results, ensure_ascii=False).encode('utf-8'))
     sys.stdout.buffer.write(b'\n')

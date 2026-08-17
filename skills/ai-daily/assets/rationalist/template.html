@@ -162,6 +162,7 @@
         <a class="sec-toggle on" id="sec-spotlight" href="#sec-anchor-spotlight">Spotlight</a>
         <a class="sec-toggle" id="sec-youtube" href="#sec-anchor-youtube">YouTube Picks</a>
         <a class="sec-toggle" id="sec-x" href="#sec-anchor-x">X.com Posts</a>
+        <a class="sec-toggle" id="sec-markets" href="#sec-anchor-markets">Markets</a>
       </div>
       <div class="lang-toggles">
         <button class="tab on" id="tab-en" onclick="sw('en')">English</button>
@@ -259,7 +260,7 @@
 
   <!-- ── X.COM POSTS ────────────────────────────────────────────────────────── -->
   <!-- Sorted by engagement (likes). Repeat .x-row for each post.               -->
-  <section class="art-sec sec-x last" id="sec-anchor-x">
+  <section class="art-sec sec-x" id="sec-anchor-x">
     <div class="sec">
       <span class="sec-dot" style="background:var(--sage-dark)"></span>
       X.com Top Posts
@@ -276,6 +277,33 @@
         <div class="x-content">
           <p class="x-body">{{X_1_BODY_EN}}</p>
           <a href="{{X_1_URL}}" class="x-lnk">View post &rarr;</a>
+        </div>
+      </div>
+      <!-- /REPEAT -->
+    </div>
+  </section>
+
+  <!-- ── MARKETS ────────────────────────────────────────────────────────────── -->
+  <!-- Finance/trading accounts, section="markets" posts. Same .x-row structure. -->
+  <!-- If there are no market posts for the day, REMOVE this whole section AND    -->
+  <!-- the Markets nav link, and put `last` back on the X.com section above.      -->
+  <section class="art-sec sec-markets last" id="sec-anchor-markets">
+    <div class="sec">
+      <span class="sec-dot" style="background:var(--red)"></span>
+      Markets
+      <span class="sec-rule"></span>
+      <span style="font-size:10px">{{MKT_COUNT}} · by engagement</span>
+    </div>
+    <div class="x-feed">
+      <!-- REPEAT this .x-row block for each market post -->
+      <div class="x-row">
+        <div class="x-meta">
+          <span class="x-handle">{{MKT_1_HANDLE}}</span>
+          <span class="x-stats">❤ {{MKT_1_LIKES}} · {{MKT_1_DATE}}</span>
+        </div>
+        <div class="x-content">
+          <p class="x-body">{{MKT_1_BODY_EN}}</p>
+          <a href="{{MKT_1_URL}}" class="x-lnk">View post &rarr;</a>
         </div>
       </div>
       <!-- /REPEAT -->
@@ -366,7 +394,7 @@
   </section>
 
   <!-- ── X.com 热议 ───────────────────────────────────────────────────────────── -->
-  <section class="art-sec sec-x last">
+  <section class="art-sec sec-x">
     <div class="sec">
       <span class="sec-dot" style="background:var(--sage-dark)"></span>
       X.com 热议
@@ -383,6 +411,31 @@
         <div class="x-content">
           <p class="x-body">{{X_1_BODY_CN}}</p>
           <a href="{{X_1_URL}}" class="x-lnk">查看原帖 &rarr;</a>
+        </div>
+      </div>
+      <!-- /REPEAT -->
+    </div>
+  </section>
+
+  <!-- ── 市场观察 ─────────────────────────────────────────────────────────────── -->
+  <!-- 无 market 帖时整段删除（连同 nav 的 Markets 锚点），并把上面 X.com 区块改回 last -->
+  <section class="art-sec sec-markets last">
+    <div class="sec">
+      <span class="sec-dot" style="background:var(--red)"></span>
+      市场观察
+      <span class="sec-rule"></span>
+      <span style="font-size:10px">{{MKT_COUNT}} 条 · 按互动量排序</span>
+    </div>
+    <div class="x-feed">
+      <!-- REPEAT this .x-row block for each market post -->
+      <div class="x-row">
+        <div class="x-meta">
+          <span class="x-handle">{{MKT_1_HANDLE}}</span>
+          <span class="x-stats">❤ {{MKT_1_LIKES}} · {{MKT_1_DATE}}</span>
+        </div>
+        <div class="x-content">
+          <p class="x-body">{{MKT_1_BODY_CN}}</p>
+          <a href="{{MKT_1_URL}}" class="x-lnk">查看原帖 &rarr;</a>
         </div>
       </div>
       <!-- /REPEAT -->
@@ -414,7 +467,10 @@
   }
 
   /* Highlight active nav link based on scroll position */
-  const SECS = ['spotlight', 'youtube', 'x'];
+  // 'markets' is dropped from this list on days with no market posts (the
+  // section and its nav link are removed together).
+  const SECS = ['spotlight', 'youtube', 'x', 'markets'].filter(
+    id => document.getElementById('sec-anchor-' + id) || id !== 'markets');
   function updateActiveNav() {
     const headerH = document.querySelector('.site-header').offsetHeight + 20;
     let active = SECS[0];
